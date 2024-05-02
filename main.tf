@@ -10,58 +10,85 @@ resource "tls_private_key" "my_keypair" {
   rsa_bits  = 4096
 }
 
-// Extraire la clé publique à partir de la clé privée
-data "tls_public_key" "my_keypair" {
-  private_key_pem = tls_private_key.my_keypair.private_key_pem
-}
-
 // Créer la paire de clés SSH dans AWS
 resource "aws_key_pair" "my_keypair" {
   key_name   = var.keypair_name
-  public_key = data.tls_public_key.my_keypair.public_key_openssh
+  public_key = tls_private_key.my_keypair.public_key_openssh
+}
+
+// Créer le groupe de sécurité
+resource "aws_security_group" "websg" {
+  name = "web-sg01"
+
+  ingress {
+    description = "Allow SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow PostgreSQL"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 // Créer l'instance EC2
-resource "aws_instance" "server" {
+resource "aws_instance" "terraform-vm" {
   ami           = var.aws_ami
   instance_type = var.instance_type
+  vpc_security_group_ids = [aws_security_group.websg.id]
   key_name      = aws_key_pair.my_keypair.key_name
 
   tags = {
     Name = var.instance_name
   }
+}
 
-  network_interface {
-    network_interface_id = var.network_interface_id
-    device_index         = 0
-  }
-
-  credit_specification {
-    cpu_credits = "unlimited"
-  }
+// Sortie: adresse IP publique de l'instance EC2
+output "instance_ips" {
+  value = aws_instance.terraform-vm.public_ip
 }
 
 // Se connecter à la VM et installer Docker
-resource "null_resource" "example" {
+resource "null_resource" "install_docker" {
   connection {
     type        = "ssh"
     user        = var.vm_user
     private_key = tls_private_key.my_keypair.private_key_pem
-    host        = aws_instance.server.public_ip
+    host        = aws_instance.terraform-vm.public_ip
   }
 
-  // Installation de Docker
   provisioner "file" {
-    source      = "./script.sh"
+    source      = "${path.module}/script.sh"
     destination = "/tmp/script.sh"
   }
 
   provisioner "remote-exec" {
     inline = [
-      "mv /tmp/script.sh ./script.sh",
-      "chmod +x ./script.sh",
-      "./script.sh"
+      "chmod +x /tmp/script.sh",
+      "/tmp/script.sh"
     ]
   }
 
+  depends_on = [aws_instance.terraform-vm]
 }
