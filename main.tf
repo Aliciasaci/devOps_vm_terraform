@@ -70,7 +70,7 @@ output "instance_ips" {
 }
 
 // Se connecter à la VM et installer Docker
-resource "null_resource" "install_docker" {
+resource "null_resource" "connection" {
   connection {
     type        = "ssh"
     user        = var.vm_user
