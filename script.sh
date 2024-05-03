@@ -15,10 +15,10 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 
 
 # Clone an open-source project (replace <repository-url> with the actual project URL)
-git clone https://github.com/goby-lang/sample-web-app.git
+git clone https://github.com/Londones/web-temps-reel.git
 
 # Change into the project directory (replace <project-directory> with the actual directory name)
-cd sample-web-app
+cd web-temps-reel
 
 ls -la 
 
